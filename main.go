@@ -15,7 +15,7 @@ import (
 	"strings"
 )
 
-var Ai = openai.NewClient("")
+var Ai = openai.NewClient("your token")
 
 type EventStream struct {
 	Event string
