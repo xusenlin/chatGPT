@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>XuSenLin GPT</title>
+    <!-- Import style -->
+    <link rel="stylesheet" href="//unpkg.com/element-plus/dist/index.css"/>
+    <!-- Import Vue 3 -->
+    <script src="//unpkg.com/vue@3"></script>
+    <!-- Import component library -->
+    <script src="//unpkg.com/element-plus"></script>
+    <style>
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .head {
+            height: 40px;
+            display: flex;
+            align-items: center;
+        }
+
+        .mt {
+            margin-bottom: 20px;
+        }
+
+        .send-group {
+            margin-top: 20px;
+            display: flex;
+            justify-content: flex-end;
+        }
+    </style>
+</head>
+<body>
+<div id="app">
+    <el-container>
+        <el-header class="head">
+            <div class="container" style="display: flex;justify-content: space-between">
+                <div>XuSenLin ChatGPT</div>
+                <div style="font-size: 12px;color: #999">id：{{ dialog.uuid }}</div>
+            </div>
+        </el-header>
+        <el-main>
+            <div class="container">
+                <el-card v-for="n in dialog.chat" class="box-card mt" shadow="never">
+                    <template #header>
+                        <div class="card-header">
+                            <span>{{ n.role.charAt(0).toUpperCase() + n.role.slice(1) }}</span>
+                        </div>
+                    </template>
+                    <div style="font-size: 14px;" v-html="n.content"></div>
+                </el-card>
+                <el-card class="box-card mt" shadow="never">
+                    <template #header>
+                        <div class="card-header">
+                            <span>Question</span>
+                        </div>
+                    </template>
+                    <div>
+                        <el-input
+                                v-model="question"
+                                :rows="3"
+                                type="textarea"
+                                placeholder="Please input question"
+                                @keyup.enter="sendQuestion"
+                        />
+
+                    </div>
+                    <div class="send-group">
+                        <el-button type="warning" :disabled="answering"  @click="resetDialog">重置对话</el-button>
+                        <el-button type="success" :disabled="answering"  @click="sendQuestion">发送问题</el-button>
+                    </div>
+                </el-card>
+            </div>
+        </el-main>
+    </el-container>
+</div>
+
+<script>
+
+
+    const App = {
+        data() {
+            return {
+                question: "",
+                answering:false,
+                dialog: {
+                    uuid: "",
+                    chat: [],
+                }
+            };
+        },
+        methods: {
+            resetDialog(){
+                this.dialog.chat = []
+            },
+            sendQuestion() {
+                if (this.question.length == 0) {
+                    ElementPlus.ElNotification.warning({
+                        title: "warning",
+                        message: "请输入你的问题！"
+                    })
+                    return
+                }
+                this.answering = true
+                this.dialog.chat.push({
+                    role: "user",
+                    content: this.question
+                })
+                this.question = ""
+                const loadingInstance = ElementPlus.ElLoading.service()
+                let json = JSON.stringify(this.dialog)
+                this.dialog.chat.push({
+                    role: "assistant",
+                    content: ""
+                })
+                fetch("./send", {
+                    method: "post",
+                    body: json,
+                }).then(response => response.text())
+                    .then(t => {
+                        if (t != "ok") {
+                            ElementPlus.ElNotification.warning({
+                                title: "warning",
+                                message: t
+                            })
+                            return
+                        }
+                    })
+                    .catch(error => {
+                        ElementPlus.ElNotification.warning({
+                            title: "warning",
+                            message: JSON.stringify(error)
+                        })
+                    }).finally(() => {
+                    loadingInstance.close()
+                });
+            }
+        },
+        created() {
+            let evtSource = new EventSource("./receive")
+            evtSource.onmessage = event => {
+                // 获取服务器发送过来的数据
+                // let data = event.data.replace( /^['|"](.*)['|"]$/, "$1");
+                let len = this.dialog.chat.length
+                this.dialog.chat[len - 1].content += event.data
+            };
+            evtSource.addEventListener("uuid", event => {
+                this.dialog.uuid = event.data
+            })
+            evtSource.addEventListener("eof", event => {
+                this.answering = false
+            })
+            evtSource.onerror = (error) => {
+                // 处理错误情况
+                ElementPlus.ElNotification.warning({
+                    title: "warning",
+                    message: JSON.stringify(error)
+                })
+            };
+
+
+        }
+    };
+    const app = Vue.createApp(App);
+    app.use(ElementPlus);
+    app.mount("#app");
+    // let input = document.getElementById("input");
+    // let uuid = ""
+    // // 监听 keydown 事件
+    // input.addEventListener("keydown", function(event) {
+    //     // 判断是否按下了回车键（keyCode 为 13）
+    //     if (event.keyCode === 13) {
+    //         // 阻止默认行为，比如换行
+    //         event.preventDefault();
+    //         // 获取 input 的值
+    //         let value = input.value;
+    //         // 发送数据到后端接口
+    //         fetch("./send", {
+    //             method: "post",
+    //             body: JSON.stringify({
+    //                 uuid:uuid,
+    //                 chat:[{role:"user","content":value}]
+    //             }),
+    //         }).then(response => response.text())
+    //             .then(t=>{
+    //                 console.log(t)
+    //             })
+    //             .catch(function(error) {
+    //             // 处理错误情况
+    //                 console.error("error");
+    //             console.error(error);
+    //         });
+    //     }
+    // });
+    //
+    // let evtSource = new EventSource("./receive")
+    //
+    //
+    // evtSource.onopen = function() {
+    //     // 连接打开后的逻辑
+    //     console.log("Connection opened.");
+    // };
+    // evtSource.onmessage = function(event) {
+    //     // 获取服务器发送过来的数据
+    //     let data = event.data;
+    //     document.body.innerText += data
+    //     // 处理数据逻辑
+    //
+    // };
+    // evtSource.addEventListener("uuid",function (event) {
+    //     uuid = event.data
+    // })
+    // evtSource.onerror = function(error) {
+    //     // 处理错误情况
+    //     console.log(error)
+    // };
+
+</script>
+</body>
+</html>
