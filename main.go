@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/sashabaranov/go-openai"
+	"html"
 	"io"
 	"io/ioutil"
 	"log"
@@ -85,7 +86,6 @@ func SendMsgHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write([]byte("ok"))
-	fmt.Println(ResponseEventStream)
 
 	go func() {
 		defer stream.Close()
@@ -133,9 +133,7 @@ func ReceiveHandler(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case msg := <-ResponseEventStream[u]:
-			s := strings.ReplaceAll(msg.Data, "\n", "<br>")
-			s = strings.ReplaceAll(s, " ", "<span style=\"display: inline-block;width: 1em;\"></span>")
-			fmt.Fprintf(w, "event: %v\ndata: %v\n\n", msg.Event, s)
+			fmt.Fprintf(w, "event: %v\ndata: %v\n\n", msg.Event, parseString(html.EscapeString(msg.Data)))
 			w.(http.Flusher).Flush()
 		case _ = <-r.Context().Done():
 			delete(ResponseEventStream, u)
@@ -164,4 +162,19 @@ func GenerateUUID() (string, error) {
 	uuid[6] = uuid[6]&^0xf0 | 0x40
 	uuidString := fmt.Sprintf("%!(NOVERB)x-%!(NOVERB)x-%!(NOVERB)x-%!(NOVERB)x-%!(NOVERB)x", uuid[0:4], uuid[4:6], uuid[6:8], uuid[8:10], uuid[10:])
 	return uuidString, nil
+}
+
+func parseString(input string) string {
+
+	//fmt.Println("==============")
+	//s := regexp.MustCompile("```(\\w+)").ReplaceAllString(input, "<code lang='$1'>")
+	//s = regexp.MustCompile("```\\n").ReplaceAllString(s, "</code></br>")
+	// 替换 "\n" 为 "</br>"
+	s := strings.ReplaceAll(input, "\n", "</br>")
+	// 替换 "\t" 为 "&nbsp;&nbsp;&nbsp;&nbsp;"
+	s = strings.ReplaceAll(s, "\t", "&nbsp;&nbsp;&nbsp;&nbsp;")
+	// 替换空格为 "&nbsp;"
+	s = strings.ReplaceAll(s, " ", "&nbsp;")
+
+	return s
 }

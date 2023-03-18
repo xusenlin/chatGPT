@@ -32,6 +32,12 @@
             display: flex;
             justify-content: flex-end;
         }
+        pre{
+            background: #eee;
+            border-radius: 2px;
+            padding: 6px 6px 20px 6px;
+            color: #474747;
+        }
     </style>
 </head>
 <body>
@@ -70,8 +76,8 @@
 
                     </div>
                     <div class="send-group">
-                        <el-button type="warning" :disabled="answering"  @click="resetDialog">重置对话</el-button>
-                        <el-button type="success" :disabled="answering"  @click="sendQuestion">发送问题</el-button>
+                        <el-button type="warning" :disabled="answering"  @click="resetDialog">Reset</el-button>
+                        <el-button type="success" :disabled="answering"  @click="sendQuestion">Send</el-button>
                     </div>
                 </el-card>
             </div>
@@ -144,7 +150,6 @@
             let evtSource = new EventSource("./receive")
             evtSource.onmessage = event => {
                 // 获取服务器发送过来的数据
-                // let data = event.data.replace( /^['|"](.*)['|"]$/, "$1");
                 let len = this.dialog.chat.length
                 this.dialog.chat[len - 1].content += event.data
             };
@@ -152,6 +157,9 @@
                 this.dialog.uuid = event.data
             })
             evtSource.addEventListener("eof", event => {
+                let len = this.dialog.chat.length
+                let c = this.dialog.chat[len - 1].content
+                this.dialog.chat[len - 1].content = c.replace(/```(\w*)([\w\W]*?)```/g,'<pre><code lang="$1">$2</code></pre>')
                 this.answering = false
             })
             evtSource.onerror = (error) => {
