@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,12 +27,15 @@ type DialogMsg = map[string]chan EventStream
 
 var ResponseEventStream = make(DialogMsg)
 
+//go:embed index.html
+var htmlTemplate string
+
 func main() {
 
 	http.HandleFunc("/", IndexHandler)
 	http.HandleFunc("/send", SendMsgHandler)
 	http.HandleFunc("/receive", ReceiveHandler)
-	fmt.Println("start service on 8088")
+	fmt.Println("start chatGPT service on 8088")
 	log.Fatal(http.ListenAndServe(":8088", nil))
 }
 
@@ -144,11 +148,7 @@ func ReceiveHandler(w http.ResponseWriter, r *http.Request) {
 
 func IndexHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
-	data, err := ioutil.ReadFile("index.html")
-	if err != nil {
-		log.Fatal(err)
-	}
-	w.Write(data)
+	w.Write([]byte(htmlTemplate))
 }
 
 func GenerateUUID() (string, error) {
