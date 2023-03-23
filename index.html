@@ -7,9 +7,18 @@
     <!-- Import style -->
     <link rel="stylesheet" href="//unpkg.com/element-plus/dist/index.css"/>
     <!-- Import Vue 3 -->
-    <script src="//unpkg.com/vue@3"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<!--    <script src="//unpkg.com/vue@3"></script>-->
     <!-- Import component library -->
     <script src="//unpkg.com/element-plus"></script>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+    <!-- and it's easy to individually load additional languages -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/a11y-light.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
     <style>
         .container {
             width: 100%;
@@ -33,10 +42,19 @@
             justify-content: flex-end;
         }
         pre{
-            background: #eee;
+            background: #f7f7f7!important;
             border-radius: 2px;
-            padding: 6px 6px 20px 6px;
-            color: #474747;
+            padding: 10px;
+        }
+        .card-header{
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .dialog-msg{
+            font-size: 14px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
         }
     </style>
 </head>
@@ -51,20 +69,23 @@
         </el-header>
         <el-main>
             <div class="container">
-                <el-card v-for="n in dialog.chat" class="box-card mt" shadow="never">
+                <el-card v-for="(n,i) in dialog.chat" class="box-card mt" shadow="never">
                     <template #header>
                         <div class="card-header">
                             <span>{{ n.role.charAt(0).toUpperCase() + n.role.slice(1) }}</span>
+                            <el-button link type="warning" @click="dialog.chat.splice(i,1)">
+                                Remove
+                            </el-button>
                         </div>
                     </template>
-                    <div style="font-size: 14px;word-wrap: break-word;" v-html="n.content"></div>
+                    <div class="dialog-msg" v-html="markedParse(n.content)"></div>
                 </el-card>
                 <el-card class="box-card mt" shadow="never">
                     <template #header>
-                        <div class="card-header" style="display: flex;justify-content: space-between;align-items: center">
+                        <div class="card-header">
                             <span>Question</span>
-                            <el-button link @click="dialogTableVisible = true">
-                                prompts
+                            <el-button type="success" link @click="dialogTableVisible = true">
+                                Prompts
                             </el-button>
                         </div>
                     </template>
@@ -93,7 +114,6 @@
                             <div style="display: flex;justify-content: flex-end">
                                 <el-button round size="small" type="success" :disabled="answering"  @click="question=n.prompt;dialogTableVisible=false">Utilize this prompt.</el-button>
                             </div>
-
                         </el-collapse-item>
                     </el-collapse>
                 </el-dialog>
@@ -103,6 +123,17 @@
 </div>
 
 <script>
+    function htmlEncode(str) {
+        var temp = "";
+        if (str.length == 0) return "";
+        temp = str.replace(/&/g, "&amp;");
+        temp = temp.replace(/</g, "&lt;");
+        temp = temp.replace(/>/g, "&gt;");
+        temp = temp.replace(/\s/g, "&nbsp;");
+        temp = temp.replace(/\'/g, "&#39;");
+        temp = temp.replace(/\"/g, "&quot;");
+        return temp;
+    }
     const App = {
         data() {
             return {
@@ -142,10 +173,14 @@
             };
         },
         methods: {
+            markedParse(t){
+                return marked.parse(t)
+            },
             resetDialog(){
                 this.dialog.chat = []
             },
             sendQuestion() {
+                this.question = this.question.trim()
                 if (this.question.length == 0) {
                     ElementPlus.ElNotification.warning({
                         title: "warning",
@@ -156,7 +191,7 @@
                 this.answering = true
                 this.dialog.chat.push({
                     role: "user",
-                    content: this.question
+                    content: htmlEncode(this.question)
                 })
                 this.question = ""
                 const loadingInstance = ElementPlus.ElLoading.service()
@@ -193,16 +228,37 @@
             evtSource.onmessage = event => {
                 // 获取服务器发送过来的数据
                 let len = this.dialog.chat.length
-                this.dialog.chat[len - 1].content += event.data
+                let t = JSON.parse(event.data).content
+                let stream  = document.getElementById('stream')
+                // if(!stream){
+                //     return
+                // }
+                // stream.innerHTML = marked.parse(t);
+                this.dialog.chat[len - 1].content += t
             };
             evtSource.addEventListener("uuid", event => {
                 this.dialog.uuid = event.data
             })
             evtSource.addEventListener("eof", event => {
                 let len = this.dialog.chat.length
-                let c = this.dialog.chat[len - 1].content
-                this.dialog.chat[len - 1].content = c.replace(/```(\w*)([\w\W]*?)```/g,'<pre><code lang="$1">$2</code></pre>')
+                let msg = document.querySelectorAll('.dialog-msg')
                 this.answering = false
+                if (msg.length !== len || msg.length === 0){
+                    return
+                }
+                let pre = msg[len-1].querySelectorAll('pre')
+                if(pre.length ===0){
+                    return;
+                }
+                pre.forEach(el=>{
+                    hljs.highlightElement(el);
+                })
+                //let lastMsgHtml = msg[len-1].innerHTML
+
+
+                // console.log(parseText(c))
+                // this.dialog.chat[len - 1].content = c.replace(/```(\w*)([\w\W]*?)```/g,'<pre><code lang="$1">$2</code></pre>')
+
             })
             evtSource.onerror = (error) => {
                 // 处理错误情况
@@ -218,57 +274,6 @@
     const app = Vue.createApp(App);
     app.use(ElementPlus);
     app.mount("#app");
-    // let input = document.getElementById("input");
-    // let uuid = ""
-    // // 监听 keydown 事件
-    // input.addEventListener("keydown", function(event) {
-    //     // 判断是否按下了回车键（keyCode 为 13）
-    //     if (event.keyCode === 13) {
-    //         // 阻止默认行为，比如换行
-    //         event.preventDefault();
-    //         // 获取 input 的值
-    //         let value = input.value;
-    //         // 发送数据到后端接口
-    //         fetch("./send", {
-    //             method: "post",
-    //             body: JSON.stringify({
-    //                 uuid:uuid,
-    //                 chat:[{role:"user","content":value}]
-    //             }),
-    //         }).then(response => response.text())
-    //             .then(t=>{
-    //                 console.log(t)
-    //             })
-    //             .catch(function(error) {
-    //             // 处理错误情况
-    //                 console.error("error");
-    //             console.error(error);
-    //         });
-    //     }
-    // });
-    //
-    // let evtSource = new EventSource("./receive")
-    //
-    //
-    // evtSource.onopen = function() {
-    //     // 连接打开后的逻辑
-    //     console.log("Connection opened.");
-    // };
-    // evtSource.onmessage = function(event) {
-    //     // 获取服务器发送过来的数据
-    //     let data = event.data;
-    //     document.body.innerText += data
-    //     // 处理数据逻辑
-    //
-    // };
-    // evtSource.addEventListener("uuid",function (event) {
-    //     uuid = event.data
-    // })
-    // evtSource.onerror = function(error) {
-    //     // 处理错误情况
-    //     console.log(error)
-    // };
-
 </script>
 </body>
 </html>

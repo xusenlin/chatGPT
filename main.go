@@ -2,19 +2,16 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
 	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/sashabaranov/go-openai"
-	"html"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"strings"
 )
 
 var Ai = openai.NewClient("your token")
@@ -78,7 +75,7 @@ func SendMsgHandler(w http.ResponseWriter, r *http.Request) {
 
 	stream, err := Ai.CreateChatCompletionStream(ctx, openai.ChatCompletionRequest{
 		Model:     openai.GPT3Dot5Turbo,
-		MaxTokens: 1000,
+		MaxTokens: 4080,
 		Stream:    true,
 		Messages:  msg.Chat,
 	})
@@ -110,9 +107,16 @@ func SendMsgHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			content := response.Choices[0].Delta.Content
+
+			m, _ := json.Marshal(struct {
+				Content string `json:"content"`
+			}{
+				Content: content,
+			})
+
 			ResponseEventStream[msg.Uuid] <- EventStream{
 				Event: "message",
-				Data:  content,
+				Data:  string(m),
 			}
 		}
 	}()
@@ -137,7 +141,7 @@ func ReceiveHandler(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case msg := <-ResponseEventStream[u]:
-			fmt.Fprintf(w, "event: %v\ndata: %v\n\n", msg.Event, parseString(html.EscapeString(msg.Data)))
+			fmt.Fprintf(w, "event: %v\ndata: %v\n\n", msg.Event, msg.Data)
 			w.(http.Flusher).Flush()
 		case _ = <-r.Context().Done():
 			delete(ResponseEventStream, u)
@@ -149,32 +153,4 @@ func ReceiveHandler(w http.ResponseWriter, r *http.Request) {
 func IndexHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 	w.Write([]byte(htmlTemplate))
-}
-
-func GenerateUUID() (string, error) {
-	uuid := make([]byte, 16)
-	_, err := rand.Read(uuid)
-	if err != nil {
-		return "", fmt.Errorf("failed to generate UUID: %!(NOVERB)v", err)
-	}
-	// UUID version 4 variant bits
-	uuid[8] = uuid[8]&^0xc0 | 0x80
-	uuid[6] = uuid[6]&^0xf0 | 0x40
-	uuidString := fmt.Sprintf("%!(NOVERB)x-%!(NOVERB)x-%!(NOVERB)x-%!(NOVERB)x-%!(NOVERB)x", uuid[0:4], uuid[4:6], uuid[6:8], uuid[8:10], uuid[10:])
-	return uuidString, nil
-}
-
-func parseString(input string) string {
-
-	//fmt.Println("==============")
-	//s := regexp.MustCompile("```(\\w+)").ReplaceAllString(input, "<code lang='$1'>")
-	//s = regexp.MustCompile("```\\n").ReplaceAllString(s, "</code></br>")
-	// 替换 "\n" 为 "</br>"
-	s := strings.ReplaceAll(input, "\n", "</br>")
-	// 替换 "\t" 为 "&nbsp;&nbsp;&nbsp;&nbsp;"
-	s = strings.ReplaceAll(s, "\t", "&nbsp;&nbsp;&nbsp;&nbsp;")
-	// 替换空格为 "&nbsp;"
-	s = strings.ReplaceAll(s, " ", "&nbsp;")
-
-	return s
 }
