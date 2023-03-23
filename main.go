@@ -75,7 +75,7 @@ func SendMsgHandler(w http.ResponseWriter, r *http.Request) {
 
 	stream, err := Ai.CreateChatCompletionStream(ctx, openai.ChatCompletionRequest{
 		Model:     openai.GPT3Dot5Turbo,
-		MaxTokens: 4080,
+		MaxTokens: 2000,
 		Stream:    true,
 		Messages:  msg.Chat,
 	})
