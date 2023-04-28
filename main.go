@@ -27,10 +27,14 @@ var ResponseEventStream = make(DialogMsg)
 //go:embed index.html
 var htmlTemplate string
 
+//go:embed coffee.jpg
+var imageBytes []byte
+
 func main() {
 
 	http.HandleFunc("/", IndexHandler)
 	http.HandleFunc("/send", SendMsgHandler)
+	http.HandleFunc("/coffee", Coffee)
 	http.HandleFunc("/receive", ReceiveHandler)
 	fmt.Println("start chatGPT service on 8088")
 	log.Fatal(http.ListenAndServe(":8088", nil))
@@ -153,4 +157,9 @@ func ReceiveHandler(w http.ResponseWriter, r *http.Request) {
 func IndexHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 	w.Write([]byte(htmlTemplate))
+}
+
+func Coffee(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "image/jpeg")
+	w.Write(imageBytes)
 }
